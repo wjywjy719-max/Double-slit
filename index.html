@@ -1,0 +1,489 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="description" content="두 슬릿이 같은 무작위 위상 점프를 겪을 때 간섭 파형과 무늬가 어떻게 되는지 조절하며 관찰하는 시뮬레이션">
+<meta property="og:title" content="이중슬릿 위상 점프 실험">
+<meta property="og:description" content="위상 점프 횟수, 슬릿 간격, 파장을 바꿔 가며 간섭무늬를 관찰하는 시뮬레이션">
+<meta property="og:type" content="website">
+<style>
+:root{color-scheme:light;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+body{margin:0}
+img{max-width:100%}
+[hidden]{display:none!important}
+</style>
+<title>이중슬릿 위상 점프 실험</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+KR:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+/* 배치: 넓은 화면은 왼쪽 관찰창 3개 + 오른쪽 조절판, 좁은 화면은 파형·빛 관찰창이 위에 붙고 조절판이 아래로 흐른다 */
+:root{
+  --bg:#f3f4f8; --panel:#ffffff; --fg:#1b1e2b; --muted:#5d6379; --line:#d5d8e3; --accent:#3046c8;
+  --bench:#0a0c12; --bench-line:#2a3042; --bench-fg:#c9cee0; --bench-dim:#7a8199;
+  --sans:"IBM Plex Sans KR","Apple SD Gothic Neo","Malgun Gothic","Noto Sans KR",sans-serif;
+  --mono:"IBM Plex Mono",ui-monospace,Menlo,Consolas,monospace;
+}
+@media (prefers-color-scheme: dark){ :root:not([data-theme="light"]){
+  --bg:#12141c; --panel:#1b1e2a; --fg:#e7e9f2; --muted:#9aa0b6; --line:#30354a; --accent:#8fa0ff;
+  --bench:#07080c; --bench-line:#2a3042; --bench-fg:#c9cee0; --bench-dim:#7a8199; color-scheme:dark } }
+:root[data-theme="dark"]{
+  --bg:#12141c; --panel:#1b1e2a; --fg:#e7e9f2; --muted:#9aa0b6; --line:#30354a; --accent:#8fa0ff;
+  --bench:#07080c; --bench-line:#2a3042; --bench-fg:#c9cee0; --bench-dim:#7a8199; color-scheme:dark }
+
+*{box-sizing:border-box}
+body{background:var(--bg);color:var(--fg);font-family:var(--sans);font-size:15px;line-height:1.55}
+.wrap{max-width:1180px;margin:0 auto;padding-inline:16px;padding-block:16px 28px;
+  display:grid;gap:14px;grid-template-columns:minmax(0,1fr);
+  grid-template-areas:"head" "diagram" "views" "controls" "note"}
+header{grid-area:head}
+h1{font-size:20px;font-weight:600;margin:0;text-wrap:balance}
+header p{margin:2px 0 0;color:var(--muted);font-size:13.5px}
+h2{font-size:12.5px;font-weight:600;margin:0;color:var(--muted);letter-spacing:.02em}
+.cap{display:flex;justify-content:space-between;align-items:baseline;gap:8px;margin-bottom:5px}
+.cap span{font-size:12px;color:var(--muted)}
+canvas{display:block;width:100%;background:var(--bench);border-radius:6px;touch-action:pan-y}
+#diagram{grid-area:diagram;min-width:0}
+#cvDiagram{height:150px}
+#views{grid-area:views;min-width:0;display:grid;gap:8px;
+  position:sticky;top:env(safe-area-inset-top,0px);z-index:5;background:var(--bg);
+  padding-block:8px;border-bottom:1px solid var(--line)}
+#cvWave{height:100px;cursor:crosshair}
+#cvRatio{height:76px;cursor:crosshair}
+.lg i{display:inline-block;width:10px;height:10px;border-radius:2px;margin:0 4px 0 8px;vertical-align:-1px}
+.lg .bad{background:#ffb347}.lg .good{background:#6fb7ff}
+#cvLight{height:64px;cursor:crosshair}
+#probe{font-family:var(--mono);font-size:12px;font-variant-numeric:tabular-nums;color:var(--fg);margin:0;
+  overflow-wrap:anywhere}
+#controls{grid-area:controls;min-width:0;background:var(--panel);border:1px solid var(--line);border-radius:8px;
+  padding:14px;display:grid;gap:14px;align-content:start}
+.ctl{display:grid;gap:2px}
+.ctl .row{display:flex;justify-content:space-between;align-items:baseline;gap:8px}
+.ctl label,.ctl .lbl{font-weight:500;font-size:14px}
+button[aria-pressed="true"]{background:var(--accent);border-color:var(--accent);color:var(--panel)}
+#clock{display:grid;gap:5px}
+#bar{position:relative;height:6px;border-radius:3px;background:var(--line)}
+#barWin{position:absolute;left:40%;width:30%;top:0;bottom:0;background:var(--accent);opacity:.6}
+#barPos{position:absolute;top:-3px;bottom:-3px;width:2px;margin-left:-1px;background:var(--fg)}
+#clockTxt{font-family:var(--mono);font-size:12px;font-variant-numeric:tabular-nums;margin:0;overflow-wrap:anywhere}
+.ctl output{font-family:var(--mono);font-size:14px;font-variant-numeric:tabular-nums;white-space:nowrap}
+.ctl small{color:var(--muted);font-size:12px}
+input[type=range]{width:100%;height:34px;margin:0;accent-color:var(--accent)}
+input[type=range]:focus-visible,button:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+#spectrum{height:6px;border-radius:3px;margin-top:-4px}
+.btns{display:flex;gap:8px}
+button{flex:1;font:inherit;font-weight:500;min-height:42px;border-radius:6px;border:1px solid var(--line);
+  background:var(--bg);color:var(--fg);cursor:pointer}
+button.primary{background:var(--accent);border-color:var(--accent);color:var(--panel)}
+dl{margin:0;display:grid;grid-template-columns:auto 1fr;gap:4px 12px;font-size:13px;
+  border-top:1px solid var(--line);padding-top:12px}
+dt{color:var(--muted)}
+dd{margin:0;text-align:right;font-family:var(--mono);font-variant-numeric:tabular-nums;overflow-wrap:anywhere}
+#note{grid-area:note;max-width:68ch;color:var(--muted);font-size:13.5px}
+#note p{margin:0 0 8px}
+#note strong{color:var(--fg);font-weight:600}
+
+@media (min-width:760px){
+  .wrap{grid-template-columns:minmax(0,1fr) 320px;gap:16px 20px;
+    grid-template-areas:"head head" "diagram controls" "views controls" "note controls"}
+  #views{position:static;border-bottom:0;padding-block:0}
+  #cvDiagram{height:210px} #cvWave{height:230px} #cvLight{height:110px} #cvRatio{height:130px}
+  #controls{position:sticky;top:calc(env(safe-area-inset-top,0px) + 16px);
+    max-height:calc(100vh - 32px);overflow:auto}
+}
+</style>
+
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1>이중슬릿 위상 점프 실험</h1>
+    <p>두 슬릿에 들어가기 직전, 빛의 위상이 일정한 간격으로 무작위하게 바뀝니다.</p>
+  </header>
+
+  <section id="diagram">
+    <div class="cap"><h2>1. 슬릿 배치</h2><span id="capDiag">실제 비율이 아닌 개념도</span></div>
+    <canvas id="cvDiagram" aria-label="광원, 위상 점프 위치, 이중슬릿, 스크린의 배치도"></canvas>
+  </section>
+
+  <section id="views">
+    <div>
+      <div class="cap"><h2>2. 스크린 위의 간섭 파형</h2><span id="capWave">진동은 느리게 그림</span></div>
+      <canvas id="cvWave" aria-label="스크린 위치에 따른 합성파의 순간값과 진폭 범위"></canvas>
+    </div>
+    <div>
+      <div class="cap"><h2>3. 눈에 보이는 빛</h2><span id="capLight">화면을 누르거나 끌어 측정점 이동</span></div>
+      <canvas id="cvLight" aria-label="스크린에 보이는 밝고 어두운 무늬"></canvas>
+    </div>
+    <div>
+      <div class="cap"><h2>4. 시간 비율</h2><span class="lg"><i class="bad"></i>뒤틀린 시간<i class="good"></i>바로잡힌 시간</span></div>
+      <canvas id="cvRatio" aria-label="스크린 위치별로 두 빛의 위상이 어긋나 있는 시간과 맞아 있는 시간의 비율"></canvas>
+    </div>
+    <p id="probe"></p>
+    <div id="clock" hidden><p id="clockTxt"></p></div>
+  </section>
+
+  <aside id="controls">
+    <div class="ctl">
+      <div class="row"><span class="lbl">시간 흐름</span><output id="outSpeed"></output></div>
+      <div class="btns" role="group" aria-label="시간 흐름">
+        <button type="button" id="btnReal" aria-pressed="true">1배속</button>
+        <button type="button" id="btnSlow" aria-pressed="false">초저속</button>
+      </div>
+      <small id="speedHelp"></small>
+    </div>
+    <div class="ctl">
+      <div class="row"><label for="inP">측정점 위치</label><output id="outP"></output></div>
+      <input type="range" id="inP" min="-100" max="100" step="0.5" value="40">
+      <small>스크린 표시 폭 안에서 움직입니다. 개념도의 두 경로와 2번, 3번의 흰 세로선이 함께 움직입니다</small>
+    </div>
+    <div class="ctl">
+      <div class="row"><label for="inL">슬릿에서 스크린까지 거리</label><output id="outL"></output></div>
+      <input type="range" id="inL" min="10" max="100" step="1" value="50">
+    </div>
+    <div class="ctl">
+      <div class="row"><label for="inD">슬릿 사이 간격</label><output id="outD"></output></div>
+      <input type="range" id="inD" min="0" max="1000" step="1" value="411">
+      <small>0.02 mm부터 1 mm까지</small>
+    </div>
+    <div class="ctl">
+      <div class="row"><label for="inW">파장</label><output id="outW"></output></div>
+      <input type="range" id="inW" min="380" max="750" step="1" value="565">
+      <div id="spectrum"></div>
+    </div>
+    <div class="ctl">
+      <div class="row"><label for="inF">위상 점프 횟수</label><output id="outF"></output></div>
+      <input type="range" id="inF" min="0" max="1000" step="1" value="67">
+      <small>1초에 1번부터 10¹⁵번까지. 점프마다 −180°에서 +180° 사이의 값으로 새로 정해집니다</small>
+    </div>
+    <div class="ctl">
+      <div class="row"><label for="inX">스크린 표시 폭</label><output id="outX"></output></div>
+      <input type="range" id="inX" min="0" max="1000" step="1" value="475">
+      <small>중앙에서 양쪽으로 보이는 범위. 2번과 3번에 함께 적용됩니다</small>
+    </div>
+    <div class="btns">
+      <button type="button" id="btnPlay" class="primary">일시정지</button>
+      <button type="button" id="btnReset">처음 값으로</button>
+    </div>
+    <dl>
+      <dt>무늬 간격</dt><dd id="rFringe"></dd>
+      <dt>점프 사이 시간</dt><dd id="rT"></dd>
+      <dt>점프 사이에 빛이 가는 거리</dt><dd id="rLc"></dd>
+      <dt>경로차의 최댓값</dt><dd id="rDmax"></dd>
+      <dt>측정점의 무늬 선명도</dt><dd id="rV"></dd>
+    </dl>
+  </aside>
+
+  <section id="note">
+    <p><strong>1초에 수천 번 정도의 점프로는 3번 무늬가 변하지 않습니다.</strong> 두 슬릿이 같은 점프를 동시에 겪기 때문에, 스크린의 한 점에 도착한 두 빛의 위상차는 경로차만으로 정해집니다. 그래서 2번의 순간 파형은 점프 때마다 튀지만 진폭 범위(옅은 띠)는 움직이지 않습니다.</p>
+    <p>무늬가 흐트러지는 때는 가까운 슬릿의 빛만 새 위상으로 도착해 있는 짧은 순간뿐이고, 그 길이는 경로차를 빛의 속도로 나눈 값입니다. 경로차는 슬릿 간격을 넘지 못하므로 이 시간은 10⁻¹²초보다도 짧습니다. 처음 값 그대로 점프 횟수만 10¹³번 근처까지 올리면 점프 사이에 빛이 가는 거리가 경로차와 비슷해지면서, 경로차가 큰 바깥쪽 무늬부터 흐려지고 2번 파형도 바깥쪽에서 진폭 범위를 벗어납니다. 10¹⁵번에 가까워지면 중앙의 밝은 무늬 하나만 남습니다.</p>
+    <p>슬릿 하나의 폭에 따른 회절은 넣지 않았고, 눈은 빛의 진동보다 훨씬 느리므로 1배속의 3번은 시간 평균 밝기로 그렸습니다.</p>
+    <p>4번 그래프는 각 위치에서 두 빛의 위상이 어긋나 있는 시간과 맞아 있는 시간의 비율입니다. 뒤틀린 시간의 비율은 그 위치의 경로차를 점프 사이에 빛이 가는 거리로 나눈 값이고, 100%에 닿는 위치에 빨간 점선을 그었습니다. 점선 바깥은 항상 뒤틀려 있어서 선을 그리지 않았습니다. 점프 횟수가 적으면 점선이 화면 밖에 있고 두 선은 0%와 100%에 붙어 있습니다.</p>
+    <p><strong>초저속</strong>은 측정점이 한 번 뒤틀려 있는 시간(경로차 ÷ 빛의 속도)이 화면에서 3초가 되도록 시간을 늘려서 끊지 않고 계속 흘려보냅니다. 가까운 쪽 경로로 새 위상이 도착하면 측정점이 뒤틀리고, 3초 뒤 먼 쪽 경로로도 도착하면 정상으로 돌아옵니다. 개념도의 흰 공 하나가 위상 점프 하나이고, 공과 공 사이는 같은 위상을 가진 구간이라 한 가지 색으로 칠했습니다. 초저속을 켠 순간 이미 날아가고 있던 공도 그 위치에서부터 보입니다. 측정점에 두 경로의 색이 서로 다르게 닿아 있는 동안이 뒤틀린 시간이고, 그때 측정점이 붉게 표시됩니다. 공의 개수는 점프 횟수를 따라가서, 점프가 드물면 켠 뒤 4초쯤에 공 한 쌍이 지나가고 그 뒤로는 사실상 다시 오지 않습니다. 이 배율에서는 다음 점프까지가 너무 멀기 때문입니다. 10¹⁴번을 넘기면 여러 쌍이 줄지어 계속 지나갑니다. 두 경로의 공이 벌어지는 정도는 보이도록 과장했습니다. 붉게 칠한 곳이 두 빛의 위상이 서로 다른 구간이고, 3번에는 그 순간의 밝기를 그려서 무늬가 밀려 있는 모습이 보입니다. 새 위상은 중앙에 먼저 닿고 바깥으로 퍼져 나가므로 붉은 구간도 중앙에서 시작해 바깥으로 퍼지고, 그 뒤를 따라 중앙부터 풀립니다. 각 지점이 뒤틀려 있는 시간은 정확한 값이지만, 퍼져 나가는 빠르기는 풀리는 빠르기에 맞춰 줄여서 그렸습니다. 실제로는 새 위상이 바깥에 닿기까지의 지연이 훨씬 커서, 같은 배율로 그리면 붉은 구간이 슬릿 간격만 한 폭의 가는 띠가 되어 이 화면 폭에서는 보이지 않습니다.</p>
+  </section>
+</div>
+
+<script>
+(function(){
+  const $=id=>document.getElementById(id);
+  const C=299792458;
+  const DEF={inL:50,inD:411,inW:565,inF:67,inX:475,inP:40};
+  const S={L:.5,d:1e-4,wl:565e-9,f:10,X:.015,frac:.4,playing:true,t:0,phase:0,jumpIdx:0,flash:0,prev:0,tau:1,slow:false,s:0,seed:1,tr:0,th:0,thS:0,sIdx:0,g:1e9,vc:0,vh:.015,R0:.5};
+  const cv={D:$('cvDiagram'),W:$('cvWave'),I:$('cvLight'),R:$('cvRatio')};
+  const cx={D:cv.D.getContext('2d'),W:cv.W.getContext('2d'),I:cv.I.getContext('2d'),R:cv.R.getContext('2d')};
+  const FONT='"IBM Plex Sans KR","Apple SD Gothic Neo","Malgun Gothic",sans-serif';
+
+  function wl2rgb(w){
+    let r=0,g=0,b=0;
+    if(w<440){r=(440-w)/60;b=1}else if(w<490){g=(w-440)/50;b=1}else if(w<510){g=1;b=(510-w)/20}
+    else if(w<580){r=(w-510)/70;g=1}else if(w<645){r=1;g=(645-w)/65}else{r=1}
+    let f=1; if(w<420)f=.4+.6*(w-380)/40; else if(w>700)f=.4+.6*(750-w)/50;
+    return [r*f,g*f,b*f];
+  }
+  const css=(c,a)=>'rgba('+Math.round(c[0]*255)+','+Math.round(c[1]*255)+','+Math.round(c[2]*255)+','+a+')';
+  function sig(v,n){return Number(v.toPrecision(n)).toString()}
+  function fmtLen(m){
+    const a=Math.abs(m);
+    if(a===0)return '0';
+    if(a<1e-6)return sig(m*1e9,3)+' nm';
+    if(a<1e-3)return sig(m*1e6,3)+' µm';
+    if(a<1e-2)return sig(m*1e3,3)+' mm';
+    if(a<1)return sig(m*1e2,3)+' cm';
+    if(a<1e3)return sig(m,3)+' m';
+    return Math.round(m/1e3).toLocaleString('ko-KR')+' km';
+  }
+  // 두 슬릿에서 스크린 위 x 지점까지의 경로차 (정확한 식)
+  function pathDiff(x){
+    const r1=Math.hypot(S.L,x+S.d/2), r2=Math.hypot(S.L,x-S.d/2);
+    return 2*x*S.d/(r1+r2);
+  }
+  const SUP='⁰¹²³⁴⁵⁶⁷⁸⁹';
+  function fmtCount(f){if(f<1e4)return String(f);const e=Math.floor(Math.log10(f)+1e-9),m=Number((f/Math.pow(10,e)).toPrecision(2));
+    return (m===1?'':m+'×')+'10'+String(e).split('').map(c=>SUP[c]).join('')}
+  function fmtTime(t){const u=[[1,'s'],[1e-3,'ms'],[1e-6,'µs'],[1e-9,'ns'],[1e-12,'ps'],[1e-15,'fs']];
+    for(const [v,n] of u)if(t>=v*.999)return sig(t/v,3)+' '+n;return sig(t/1e-15,3)+' fs'}
+  function rph(n){let v=Math.sin((n+S.seed)*12.9898)*43758.5453;v-=Math.floor(v);return (v*2-1)*Math.PI}
+  const winT=()=>Math.max(Math.abs(pathDiff(S.frac*S.X)),S.wl/4)/C;
+  // 초저속: 새 위상이 가까운 쪽 경로로 x에 닿는 시각(측정점 기준). 중앙에서 바깥으로 퍼지되,
+  // 퍼지는 빠르기는 풀리는 빠르기와 같게 줄여서 그린다 (실제 도착 지연은 이보다 훨씬 크다)
+  const lag=x=>(Math.abs(pathDiff(x))-S.R0)/C;
+  const nearP=x=>S.slow?rph(Math.floor((S.tr-lag(x))*S.f)):S.phase;
+  const farP=(x,D)=>S.slow?rph(Math.floor((S.tr-lag(x)-Math.abs(D)/C)*S.f)):(Math.abs(D)/C>S.tau?S.prev:S.phase);
+  function syncSlow(){
+    S.vc=0;S.vh=S.X;
+    if(!S.slow){S.th=S.t*Math.PI;return}
+    S.R0=Math.abs(pathDiff(S.frac*S.X));
+    const T=winT()/3;S.s=S.tr/T+4;S.th=S.thS;
+    S.g=1/S.f/T;                                   // 점프 간격을 화면 시간(초)으로 바꾼 값
+    const nd=Math.floor((S.s-.5)/S.g);              // 가장 최근에 슬릿을 떠난 점프 번호
+    S.flash=Math.max(0,1-(S.s-.5-nd*S.g)*3);
+    S.phase=rph(nd);
+    const fac=fmtCount(Number((1/T).toPrecision(2)))+'배 느리게';
+    $('clockTxt').textContent=fac+' (화면 1초 = 실제 '+fmtTime(T)+')';
+    $('outSpeed').textContent=fac;
+  }
+  function setMode(slow){
+    S.slow=slow;S.seed=Math.random()*1000;S.tr=-4*winT()/3;S.thS=0;
+    $('btnReal').setAttribute('aria-pressed',String(!slow));$('btnSlow').setAttribute('aria-pressed',String(slow));
+    $('clock').hidden=!slow;
+    $('capDiag').textContent=slow?'공은 위상 점프, 색은 같은 위상 구간':'실제 비율이 아닌 개념도';
+    $('capWave').textContent=slow?'붉은 곳이 뒤틀린 구간':'진동은 느리게 그림';
+    $('capLight').textContent=slow?'이 순간의 밝기 (눈으로는 구분 못 함)':'화면을 누르거나 끌어 측정점 이동';
+    $('speedHelp').textContent=slow?'측정점이 한 번 뒤틀리는 시간이 화면에서 3초가 되도록 늦춰서 계속 흘려보냅니다. 뒤틀림은 중앙에서 시작해 바깥으로 퍼집니다. 측정점이나 슬릿 간격, 거리를 바꾸면 배율도 함께 바뀝니다.':'점프가 실제 간격대로 일어납니다.';
+    if(!slow)$('outSpeed').textContent='실제 속도';
+    drawAll();
+  }
+  const vis=x=>Math.max(0,1-Math.abs(pathDiff(x))*S.f/C);
+
+  function readInputs(){
+    S.L=$('inL').value/100;
+    S.d=Number((0.02e-3*Math.pow(50,$('inD').value/1000)).toPrecision(2));
+    S.wl=$('inW').value*1e-9;
+    S.f=Math.pow(10,15*$('inF').value/1000);S.f=S.f<1000?Math.max(1,Math.round(S.f)):Number(S.f.toPrecision(2));
+    S.X=1e-3*Math.pow(300,$('inX').value/1000);
+    S.jumpIdx=Math.floor(S.t*S.f);
+    S.frac=$('inP').value/100;
+    $('outL').textContent=Math.round(S.L*100)+' cm';
+    $('outD').textContent=(S.d*1e3).toFixed(S.d<1e-4?3:2)+' mm';
+    $('outW').textContent=Math.round(S.wl*1e9)+' nm';
+    $('outF').textContent='1초에 '+fmtCount(S.f)+'번';
+    $('outX').textContent='±'+sig(S.X*1e3,2)+' mm';
+    $('rFringe').textContent=fmtLen(S.wl*S.L/S.d);
+    $('rT').textContent=fmtTime(1/S.f);
+    $('rLc').textContent=fmtLen(C/S.f);
+    $('rDmax').textContent=fmtLen(S.d);
+    updateProbe();
+  }
+  function updateProbe(){
+    const x=S.frac*S.X, D=pathDiff(x), loss=1-vis(x);
+    $('outP').textContent='x = '+(x*1e3).toFixed(2)+' mm';
+    $('probe').textContent='측정점 x = '+(x*1e3).toFixed(2)+' mm, 경로차 = '+fmtLen(D)+' = '+(D/S.wl).toFixed(2)+' λ, 뒤틀린 시간 '+(loss>=1?'100':loss<1e-3?(loss*100).toExponential(1):(loss*100).toFixed(1))+'%';
+    $('rV').textContent=loss<1e-6?'1 − '+loss.toExponential(1):(100*(1-loss)).toFixed(2)+'%';
+  }
+
+  function fit(c,ctx){
+    const r=c.getBoundingClientRect(), dpr=Math.min(window.devicePixelRatio||1,3);
+    const w=Math.max(10,Math.round(r.width*dpr)), h=Math.max(10,Math.round(r.height*dpr));
+    if(c.width!==w||c.height!==h){c.width=w;c.height=h}
+    ctx.setTransform(dpr,0,0,dpr,0,0);
+    return {w:r.width,h:r.height,dpr};
+  }
+  const BG='#07080c', FG='#c9cee0', DIM='#7a8199', LINE='#2a3042';
+
+  function drawDiagram(){
+    const {w,h}=fit(cv.D,cx.D), c=cx.D, col=wl2rgb(S.wl*1e9);
+    c.clearRect(0,0,w,h);
+    const cy=h/2-6, bx=Math.max(70,w*.2);
+    const sx=bx+(w-bx-34)*(.35+.65*(S.L*100-10)/90);
+    const gap=12+34*($('inD').value/1000), y1=cy-gap/2, y2=cy+gap/2;
+    const jx=bx-16;
+    // 들어오는 파면
+    const sp=13, off=(((S.th+S.phase)/(2*Math.PI))%1+1)%1*sp;
+    c.lineWidth=1.5;
+    for(let x=jx-sp+off;x>4;x-=sp){c.strokeStyle=css(col,.55);c.beginPath();c.moveTo(x,cy-44);c.lineTo(x,cy+44);c.stroke()}
+    // 위상 점프 위치
+    c.setLineDash([4,3]);c.strokeStyle='rgba(255,255,255,'+(.35+.65*S.flash)+')';c.lineWidth=1+2*S.flash;
+    c.beginPath();c.moveTo(jx,cy-54);c.lineTo(jx,cy+54);c.stroke();c.setLineDash([]);
+    // 슬릿 판
+    c.strokeStyle=FG;c.lineWidth=4;c.beginPath();
+    c.moveTo(bx,22);c.lineTo(bx,y1-3);c.moveTo(bx,y1+3);c.lineTo(bx,y2-3);c.moveTo(bx,y2+3);c.lineTo(bx,h-26);c.stroke();
+    // 스크린
+    c.lineWidth=3;c.beginPath();c.moveTo(sx,22);c.lineTo(sx,h-26);c.stroke();
+    // 두 경로
+    const py=cy-S.frac*(cy-14);
+    if(!S.slow){c.lineWidth=1.5;c.strokeStyle=css(col,.9);
+      c.beginPath();c.moveTo(bx,y1);c.lineTo(sx,py);c.moveTo(bx,y2);c.lineTo(sx,py);c.stroke();}
+    let hot=false;
+    if(S.slow){
+      // 공 하나가 위상 점프 하나. 공과 공 사이는 같은 위상을 가진 구간이라 한 가지 색으로 칠한다.
+      const SEG=['#6fb7ff','#ffb347','#c58bff','#5fe0b0'], g=S.g, nearUp=pathDiff(S.frac*S.X)>=0;
+      hot=Math.floor((S.s-4)/g)!==Math.floor((S.s-7)/g);
+      [[y1,nearUp?3.5:6.5],[y2,nearUp?6.5:3.5]].forEach(([y0,Tt])=>{
+        let n=Math.floor((S.s-.5)/g), qa=0, cnt=0;
+        while(qa<1&&cnt++<90){
+          const qb=Math.min(1,(S.s-.5-n*g)/Tt);
+          c.strokeStyle=SEG[((n%4)+4)%4];c.lineWidth=2.6;c.beginPath();
+          c.moveTo(bx+(sx-bx)*qa,y0+(py-y0)*qa);c.lineTo(bx+(sx-bx)*qb,y0+(py-y0)*qb);c.stroke();
+          if(qb<1){c.save();c.shadowColor='#fff';c.shadowBlur=8;c.fillStyle='#fff';c.beginPath();
+            c.arc(bx+(sx-bx)*qb,y0+(py-y0)*qb,4.5,0,7);c.fill();c.restore()}
+          qa=qb;n--;
+        }
+      });
+    }
+    c.fillStyle=hot?'#ff5a5a':css(col,1);c.beginPath();c.arc(sx,py,hot?5.5:3.5,0,7);c.fill();
+    c.strokeStyle=LINE;c.lineWidth=1;c.setLineDash([2,3]);c.beginPath();c.moveTo(bx,cy);c.lineTo(sx,cy);c.stroke();c.setLineDash([]);
+    // 치수
+    c.font='12px '+FONT;c.fillStyle=FG;c.textBaseline='middle';
+    c.strokeStyle=DIM;c.beginPath();c.moveTo(bx+9,y1);c.lineTo(bx+9,y2);c.moveTo(bx+6,y1);c.lineTo(bx+12,y1);c.moveTo(bx+6,y2);c.lineTo(bx+12,y2);c.stroke();
+    c.textAlign='left';c.fillText('d = '+$('outD').textContent,bx+16,S.frac<0?cy-gap/2-12:cy+gap/2+12);
+    const ly=h-13;
+    c.beginPath();c.moveTo(bx,ly);c.lineTo(sx,ly);c.moveTo(bx,ly-4);c.lineTo(bx,ly+4);c.moveTo(sx,ly-4);c.lineTo(sx,ly+4);c.stroke();
+    c.textAlign='center';c.fillStyle=BG;const lt='L = '+$('outL').textContent, tw=c.measureText(lt).width+10;
+    c.fillRect((bx+sx)/2-tw/2,ly-8,tw,16);c.fillStyle=FG;c.fillText(lt,(bx+sx)/2,ly);
+    c.textAlign='right';c.fillText('x = '+(S.frac*S.X*1e3).toFixed(2)+' mm',sx-9,py+(S.frac>=0?-11:11));
+    c.fillStyle=DIM;c.font='11px '+FONT;
+    c.textAlign='left';c.fillText('위상 점프 '+(S.phase>=0?'+':'−')+Math.abs(Math.round(S.phase*180/Math.PI))+'°',6,12);
+    c.textAlign='center';c.fillText('스크린',Math.min(w-22,sx),12);
+  }
+
+  function probeLine(c,w,h){
+    const px=(S.frac*S.X-S.vc+S.vh)/(2*S.vh)*w;
+    c.strokeStyle='rgba(255,255,255,.95)';c.lineWidth=1.5;
+    c.beginPath();c.moveTo(px,0);c.lineTo(px,h);c.stroke();
+    c.fillStyle='#fff';c.beginPath();c.moveTo(px-5,0);c.lineTo(px+5,0);c.lineTo(px,7);c.closePath();c.fill();
+  }
+
+  function drawWave(){
+    const {w,h}=fit(cv.W,cx.W), c=cx.W, col=wl2rgb(S.wl*1e9);
+    c.clearRect(0,0,w,h);
+    const mid=h/2, amp=(h/2-8)/2, k=Math.PI/S.wl;
+    const xa=p=>S.vc+(p/w*2-1)*S.vh;
+    // 진폭 범위
+    c.beginPath();
+    const env=[];
+    for(let p=0;p<=w;p++){
+      let m=0;for(let s=0;s<4;s++){const v=Math.abs(Math.cos(k*pathDiff(xa(p+s/4))));if(v>m)m=v}
+      const a0=k*pathDiff(xa(p)), a1=k*pathDiff(xa(p+1));
+      if(Math.floor(a0/Math.PI)!==Math.floor(a1/Math.PI))m=1;
+      env.push(2*m);
+    }
+    c.moveTo(0,mid-env[0]*amp);
+    for(let p=1;p<=w;p++)c.lineTo(p,mid-env[p]*amp);
+    for(let p=w;p>=0;p--)c.lineTo(p,mid+env[p]*amp);
+    c.closePath();c.fillStyle=css(col,.2);c.fill();
+    c.strokeStyle=LINE;c.lineWidth=1;c.beginPath();c.moveTo(0,mid);c.lineTo(w,mid);c.moveTo(w/2,0);c.lineTo(w/2,h);c.stroke();
+    if(S.slow){c.fillStyle='rgba(255,90,90,.3)';
+      for(let p=0;p<w;p++){const x=xa(p+.5),a=S.tr-lag(x);
+        if(Math.floor(a*S.f)!==Math.floor((a-Math.abs(pathDiff(x))/C)*S.f))c.fillRect(p,0,1.05,h)}}
+    // 순간 파형
+    const th=S.th;
+    c.beginPath();
+    for(let i=0;i<=w*2;i++){
+      const p=i/2, x0=xa(p), D=pathDiff(x0), hf=k*D, nP=nearP(x0), fP=farP(x0,D),
+        y=mid-(Math.cos(th+(D>0?nP:fP)+hf)+Math.cos(th+(D>0?fP:nP)-hf))*amp;
+      i?c.lineTo(p,y):c.moveTo(p,y);
+    }
+    c.strokeStyle=css(col,1);c.lineWidth=1.6;c.lineJoin='round';c.stroke();
+    probeLine(c,w,h);
+  }
+
+  function niceStep(v){const e=Math.pow(10,Math.floor(Math.log10(v)));const m=v/e;return (m<1.5?1:m<3.5?2:m<7.5?5:10)*e}
+
+  function drawLight(){
+    const {w,h,dpr}=fit(cv.I,cx.I), c=cx.I, col=wl2rgb(S.wl*1e9);
+    c.clearRect(0,0,w,h);
+    const ax=20, sh=h-ax, n=Math.round(w*dpr), k2=2*Math.PI/S.wl;
+    for(let i=0;i<n;i++){
+      const xa=S.vc+(i/n*2-1)*S.vh, xb=S.vc+((i+1)/n*2-1)*S.vh;
+      const da=k2*pathDiff(xa), db=k2*pathDiff(xb);
+      let o=0;if(S.slow){const xm=(xa+xb)/2,D=pathDiff(xm),q=nearP(xm)-farP(xm,D);o=D>0?q:-q}
+      const mc=Math.abs(db-da)>1e-6?(Math.sin(db+o)-Math.sin(da+o))/(db-da):Math.cos(da+o);
+      const I=(1+(S.slow?1:vis((xa+xb)/2))*mc)/2;            // 0..1
+      c.fillStyle=css(col,Math.pow(Math.max(0,I),.6));
+      c.fillRect(i/dpr,0,1/dpr+.5,sh);
+    }
+    // 눈금
+    const lo=(S.vc-S.vh)*1e3, hi=(S.vc+S.vh)*1e3, step=niceStep((hi-lo)/(w<520?4.4:8)), mid=Math.round((lo+hi)/2/step)*step;
+    c.font='11px "IBM Plex Mono",ui-monospace,Menlo,monospace';c.fillStyle=DIM;c.strokeStyle=DIM;c.textBaseline='middle';c.textAlign='center';
+    c.lineWidth=1;
+    for(let v=Math.ceil(lo/step-1e-9)*step;v<=hi+1e-9;v+=step){
+      const p=(v-lo)/(hi-lo)*w;
+      c.beginPath();c.moveTo(p,sh);c.lineTo(p,sh+4);c.stroke();
+      const t=(Math.abs(v)<step/1e3?'0':sig(v,4))+(Math.abs(v-mid)<step/1e3?' mm':'');
+      if(p>24&&p<w-24)c.fillText(t,p,sh+12);
+    }
+    const hgt=sh;c.save();c.beginPath();c.rect(0,0,w,hgt);c.clip();probeLine(c,w,hgt);c.restore();
+  }
+
+  function drawRatio(){
+    const {w,h}=fit(cv.R,cx.R), c=cx.R; c.clearRect(0,0,w,h);
+    const t=9, b=h-9, Y=v=>b-(b-t)*v, xa=p=>S.vc+(p/w*2-1)*S.vh;
+    c.font='10px "IBM Plex Mono",ui-monospace,Menlo,monospace';c.fillStyle=DIM;c.textAlign='left';c.lineWidth=1;
+    [[0,'0%','bottom'],[.5,'50%','middle'],[1,'100%','top']].forEach(([v,l,bl])=>{
+      c.strokeStyle=LINE;c.beginPath();c.moveTo(0,Y(v));c.lineTo(w,Y(v));c.stroke();
+      c.textBaseline=bl;c.fillText(l,4,Y(v)+(v===1?2:v===0?-2:0));});
+    // 뒤틀린 시간이 100%가 되는 위치
+    const u=C/S.f/S.d, xs=u<1?S.L*u/Math.sqrt(1-u*u):Infinity;
+    if(isFinite(xs)){
+      const P=x=>(x-S.vc+S.vh)/(2*S.vh)*w, pL=P(-xs), pR=P(xs);
+      c.fillStyle='rgba(255,90,90,.12)';if(pL>0)c.fillRect(0,0,Math.min(pL,w),h);if(pR<w)c.fillRect(Math.max(pR,0),0,w-Math.max(pR,0),h);
+      c.strokeStyle='#ff5a5a';c.lineWidth=1.5;c.setLineDash([5,4]);
+      c.beginPath();c.moveTo(pL,0);c.lineTo(pL,h);c.moveTo(pR,0);c.lineTo(pR,h);c.stroke();c.setLineDash([]);
+    }
+    [['#ffb347',v=>v],['#6fb7ff',v=>1-v]].forEach(([col,fn])=>{
+      c.beginPath();let on=false;
+      for(let p=0;p<=w;p++){const x=xa(p);if(Math.abs(x)>xs){on=false;continue}
+        const y=Y(fn(Math.min(1,Math.abs(pathDiff(x))*S.f/C)));on?c.lineTo(p,y):c.moveTo(p,y);on=true}
+      c.strokeStyle=col;c.lineWidth=2;c.lineJoin='round';c.stroke();});
+    probeLine(c,w,h);
+  }
+  function drawAll(){syncSlow();drawRatio();drawDiagram();drawWave();drawLight()}
+
+  let last=0;
+  function frame(now){
+    const dt=Math.min(.1,(now-last)/1000||0);last=now;
+    if(S.playing&&S.slow){
+      const T=winT()/3;S.tr+=dt*T;S.thS+=dt*2*Math.PI*Math.min(T*C/S.wl,3);
+      S.flash*=Math.exp(-dt*10);drawAll();
+    }else if(S.playing){
+      S.t+=dt;
+      const idx=Math.floor(S.t*S.f);
+      const fast=S.f*dt>1;
+      if(idx!==S.jumpIdx){S.jumpIdx=idx;S.prev=fast?(Math.random()*2-1)*Math.PI:S.phase;S.phase=(Math.random()*2-1)*Math.PI;S.flash=1}
+      S.tau=fast?Math.random()/S.f:(S.t*S.f-idx)/S.f;
+      S.flash*=Math.exp(-dt*10);S.th=S.t*Math.PI;
+      drawDiagram();drawWave();
+    }
+    requestAnimationFrame(frame);
+  }
+
+  // 파장 띠
+  (function(){const st=[];for(let wv=380;wv<=750;wv+=10)st.push(css(wl2rgb(wv),1));
+    $('spectrum').style.background='linear-gradient(90deg,'+st.join(',')+')'})();
+
+  Object.keys(DEF).forEach(id=>$(id).addEventListener('input',()=>{readInputs();drawAll()}));
+  $('btnPlay').addEventListener('click',()=>{S.playing=!S.playing;$('btnPlay').textContent=S.playing?'일시정지':'재생'});
+  $('btnReal').addEventListener('click',()=>setMode(false));
+  $('btnSlow').addEventListener('click',()=>setMode(true));
+  $('btnReset').addEventListener('click',()=>{Object.keys(DEF).forEach(id=>$(id).value=DEF[id]);readInputs();drawAll()});
+
+  function setProbe(e){
+    const r=e.currentTarget.getBoundingClientRect();
+    S.frac=Math.max(-1,Math.min(1,(e.clientX-r.left)/r.width*2-1));$('inP').value=S.frac*100;
+    updateProbe();drawAll();
+  }
+  [cv.W,cv.I,cv.R].forEach(el=>{
+    let down=false;
+    el.addEventListener('pointerdown',e=>{down=true;try{el.setPointerCapture(e.pointerId)}catch(_){}setProbe(e)});
+    el.addEventListener('pointermove',e=>{if(down)setProbe(e)});
+    ['pointerup','pointercancel'].forEach(t=>el.addEventListener(t,()=>{down=false}));
+  });
+
+  if(window.matchMedia&&matchMedia('(prefers-reduced-motion: reduce)').matches){S.playing=false;$('btnPlay').textContent='재생'}
+  new ResizeObserver(drawAll).observe(document.querySelector('.wrap'));
+  if(document.fonts&&document.fonts.ready)document.fonts.ready.then(drawAll);
+  readInputs();setMode(false);requestAnimationFrame(frame);
+})();
+</script>
+
+</body>
+</html>
